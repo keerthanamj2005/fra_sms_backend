@@ -1,0 +1,67 @@
+from flask import Flask, request, jsonify
+from twilio.rest import Client
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env
+load_dotenv()
+
+# Twilio credentials
+account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+from_number = os.getenv("TWILIO_FROM")  # Your Twilio trial number
+
+# Initialize Twilio client
+client = Client(account_sid, auth_token)
+
+# Initialize Flask app
+app = Flask(__name__)
+
+# Function to determine which yojana a farmer is eligible for
+def check_yojana(category, land_index):
+    if category.lower() == "st":
+        return "Forest Dwellers Empowerment Yojana"
+    elif category.lower() == "sc":
+        return "Pradhan Mantri Van Dhan Yojana"
+    elif land_index < 3:
+        return "Land Development Grant"
+    else:
+        return "General FRA Benefit"
+
+# Root endpoint
+@app.route('/')
+def index():
+    return "FRA SMS Backend is running!"
+
+# Endpoint to send SMS
+@app.route('/send_sms', methods=['POST'])
+def send_sms():
+    data = request.get_json()
+    print("Data received:", data)
+
+    phone = data.get("phone")
+    category = data.get("category")
+    land_index = data.get("land_index")
+
+    if not phone or category is None or land_index is None:
+        return jsonify({"error": "Missing required fields"}), 400
+
+    yojana = check_yojana(category, land_index)
+    body = f"Dear Farmer, based on your land index {land_index}, you are eligible for {yojana}. Contact your local FRA office for details."
+
+    try:
+        message = client.messages.create(
+            body=body,
+            from_=from_number,
+            to=phone
+        )
+        print("SMS sent! SID:", message.sid)
+        return jsonify({"status": "success", "sid": message.sid}), 200
+    except Exception as e:
+        print("Error sending SMS:", e)
+        return jsonify({"error": str(e)}), 500
+
+# Run Flask app
+if __name__ == "__main__":
+    app.run(debug=True, port=5001)
+
