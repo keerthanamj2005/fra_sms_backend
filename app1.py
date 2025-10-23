@@ -3,27 +3,20 @@ from twilio.rest import Client
 from dotenv import load_dotenv
 import os
 
-# Load environment variables from .env
 load_dotenv()
-
-# Twilio credentials (read from environment AFTER loading .env)
-account_sid = os.getenv("TWILIO_ACCOUNT_SID")
-auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-from_number = os.getenv("TWILIO_FROM")  # Your Twilio trial number
-
-# Print to verify
-print("SID:", account_sid)
-print("Auth Token:", auth_token)
-print("From Number:", from_number)
-
-# Initialize Twilio client
-client = Client(account_sid, auth_token)
-
-# Initialize Flask app
 app = Flask(__name__)
 
-# Function to determine which yojana a farmer is eligible for
+# Twilio setup
+account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+from_number = os.getenv("TWILIO_FROM")
+client = Client(account_sid, auth_token)
+
+# --- Mock Yojana logic ---
 def check_yojana(category, land_index):
+    """
+    Example rule-based logic (replace with AI model later)
+    """
     if category.lower() == "st":
         return "Forest Dwellers Empowerment Yojana"
     elif category.lower() == "sc":
@@ -33,17 +26,10 @@ def check_yojana(category, land_index):
     else:
         return "General FRA Benefit"
 
-# Root endpoint
-@app.route('/')
-def index():
-    return "FRA SMS Backend is running!"
-
-# Endpoint to send SMS
+# --- API Endpoint ---
 @app.route('/send_sms', methods=['POST'])
 def send_sms():
     data = request.get_json()
-    print("Data received:", data)
-
     phone = data.get("phone")
     category = data.get("category")
     land_index = data.get("land_index")
@@ -51,8 +37,11 @@ def send_sms():
     if not phone or category is None or land_index is None:
         return jsonify({"error": "Missing required fields"}), 400
 
+    # Decide Yojana
     yojana = check_yojana(category, land_index)
-    body = f"Dear Farmer, based on your land index {land_index}, you are eligible for {yojana}. Contact your local FRA office for details."
+
+    # Message text
+    body = f"Dear Farmer, based on your land index {land_index}, you are eligible for {yojana}. Visit your local FRA office for details."
 
     try:
         message = client.messages.create(
@@ -60,12 +49,16 @@ def send_sms():
             from_=from_number,
             to=phone
         )
-        print("SMS sent! SID:", message.sid)
-        return jsonify({"status": "success", "sid": message.sid}), 200
+        return jsonify({
+            "status": "sent",
+            "sid": message.sid,
+            "yojana": yojana
+        }), 200
+
     except Exception as e:
-        print("Error sending SMS:", e)
         return jsonify({"error": str(e)}), 500
 
-# Run Flask app
 if __name__ == "__main__":
-    app.run(debug=True, port=5002)
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
+	
